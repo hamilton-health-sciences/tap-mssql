@@ -129,8 +129,8 @@ def prepare_columns_sql(catalog_entry, c):
                       CONVERT(VARCHAR,{column_name},127)
                     else null end
                     """
-
-    return column_name
+    # Add the prefex t1. to the column name
+    return f"t1.{column_name}"
 
 
 def generate_select_sql(catalog_entry, columns):
@@ -139,7 +139,7 @@ def generate_select_sql(catalog_entry, columns):
     escaped_table = escape(catalog_entry.table)
     escaped_columns = map(lambda c: prepare_columns_sql(catalog_entry, c), columns)
 
-    select_sql = "SELECT {} FROM {}.{}".format(",".join(escaped_columns), escaped_db, escaped_table)
+    select_sql = f"SELECT {','.join(escaped_columns)} FROM {escaped_db}.{escaped_table} t1"
 
     return select_sql
 
@@ -220,10 +220,41 @@ def whitelist_bookmark_keys(bookmark_key_set, tap_stream_id, state):
         singer.clear_bookmark(state, tap_stream_id, bk)
 
 
+def get_additional_where_clause(catalog_entry, config):
+    # Attempt to get the additional WHERE clause from the catalog entry metadata
+    md_map = metadata.to_map(catalog_entry.metadata)
+    where_clause = md_map.get((), {}).get('additional_where_clause')
+
+    # If not specified in metadata, check the tap configuration
+    if not where_clause:
+        additional_where_clauses = config.get('additional_where_clauses', {})
+        where_clause = additional_where_clauses.get(catalog_entry.stream)
+
+    return where_clause
+
+
+
+
 def sync_query(cursor, catalog_entry, state, select_sql, columns, stream_version, params, config):
     replication_key = singer.get_bookmark(state, catalog_entry.tap_stream_id, "replication_key")
 
     # query_string = cursor.mogrify(select_sql, params)
+
+    # Retrieve the additional where clause
+    additional_where_clause = get_additional_where_clause(catalog_entry, config)
+
+    if additional_where_clause:
+        # Determine if select_sql already has a WHERE clause
+        upper_select_sql = select_sql.upper()
+        if 'WHERE' in upper_select_sql:
+            # Append the additional clause with AND
+            select_sql += ' AND {}'.format(additional_where_clause)
+        else:
+            # Append the additional clause with WHERE
+            select_sql += ' WHERE {}'.format(additional_where_clause)
+
+    LOGGER.info(f"Executing SQL: {select_sql}")
+
 
     time_extracted = utils.now()
     cursor.execute(select_sql, params)
