@@ -223,11 +223,11 @@ def whitelist_bookmark_keys(bookmark_key_set, tap_stream_id, state):
 def get_additional_where_clause(catalog_entry, config):
     # Attempt to get the additional WHERE clause from the catalog entry metadata
     md_map = metadata.to_map(catalog_entry.metadata)
-    where_clause = md_map.get((), {}).get('additional_where_clause')
+    where_clause = md_map.get((), {}).get('where')
 
     # If not specified in metadata, check the tap configuration
     if not where_clause:
-        additional_where_clauses = config.get('additional_where_clauses', {})
+        additional_where_clauses = config.get('where', {})
         where_clause = additional_where_clauses.get(catalog_entry.stream)
 
     return where_clause
