@@ -109,7 +109,7 @@ def prepare_columns_sql(catalog_entry, c):
         raise Exception(
             "Can't escape identifier {} because it contains a double quote".format(c)
         )
-    column_name = """ "{}" """.format(c)
+    column_name = """"{}" """.format(c)
     schema_property = catalog_entry.schema.properties[c]
     sql_data_type = ""
     # additionalProperties is used with singer.decimal to contain scale/precision
@@ -138,8 +138,8 @@ def generate_select_sql(catalog_entry, columns):
     escaped_db = escape(database_name)
     escaped_table = escape(catalog_entry.table)
     escaped_columns = map(lambda c: prepare_columns_sql(catalog_entry, c), columns)
-
-    select_sql = f"SELECT {','.join(escaped_columns)} FROM {escaped_db}.{escaped_table} t1"
+    formatted_columns = ", ".join(escaped_columns)
+    select_sql = f"SELECT {formatted_columns} FROM {escaped_db}.{escaped_table} t1 "
 
     return select_sql
 
@@ -242,7 +242,9 @@ def sync_query(cursor, catalog_entry, state, select_sql, columns, stream_version
 
     # Retrieve the additional where clause
     additional_where_clause = get_additional_where_clause(catalog_entry, config)
-
+    
+    LOGGER.info(f"Additional WHERE clause: {additional_where_clause}")
+    
     if additional_where_clause:
         # Determine if select_sql already has a WHERE clause
         upper_select_sql = select_sql.upper()
@@ -254,7 +256,6 @@ def sync_query(cursor, catalog_entry, state, select_sql, columns, stream_version
             select_sql += ' WHERE {}'.format(additional_where_clause)
 
     LOGGER.info(f"Executing SQL: {select_sql}")
-
 
     time_extracted = utils.now()
     cursor.execute(select_sql, params)
